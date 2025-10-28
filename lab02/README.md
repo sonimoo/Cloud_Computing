@@ -297,6 +297,7 @@ scp -i "C:\Users\kalin\Downloads\sofi-keypair.pem" -r "C:\Users\kalin\Desktop\re
 запускаю проект
 ![alt text](img/image-1i.png)
 ![alt text](img/image-2i.png)
+
 меняю права доступа к папке app
 ![alt text](img/image-3i.png)
 ![alt text](img/image-4i.png)
@@ -307,14 +308,14 @@ scp -i "C:\Users\kalin\Downloads\sofi-keypair.pem" -r "C:\Users\kalin\Desktop\re
 ![alt text](img/image-5i.png)
 подключаюсь к ВМ
 создаю проект с такой структурой
-
+```
 php-docker-app1/
 ├── app/
 │   └── sawmlab3/
 ├── nginx/
 │   └── default.conf
 └── docker-compose.yml
-
+```
 в powerShell пишу команду чтобы перенести папку с проектом
 ```
 scp -i "C:/Users/kalin/Downloads/sofi-keypair.pem" -r "C:/Users/kalin/Desktop/sawmlab3" ec2-user@3.121.227.162:~/php-docker-app1/app/
