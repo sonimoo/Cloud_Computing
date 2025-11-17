@@ -70,12 +70,12 @@ _Amazon S3_ — это объектное хранилище AWS, предназ
 
 *Публичный бакет:*
 
-Переходим в AWS `Console → S3 → Create bucket`.
-Имя: `cc-lab4-pub-k2`
-Регион: `eu-central-1`
-Object Ownership: выбераем Bucket owner enforced (`ACLs disabled`)
-Block all public access: пока включён
-`Create bucket`
+- Переходим в AWS `Console → S3 → Create bucket`.
+- Имя: `cc-lab4-pub-k2`
+- Регион: `eu-central-1`
+- Object Ownership: выбераем Bucket owner enforced (`ACLs disabled`)
+- Block all public access: пока включён
+- `Create bucket`
 
 ![alt text](img/image-1.png)
 ![alt text](img/image-5.png)
@@ -179,11 +179,11 @@ Console access не включен. (Данному пользователю н�
 
 #### Шаг 3.3. Привязка политики к пользователю
 
-Передим в `IAM → Users → s3-uploader → Permissions → Add permissions`.
+Передходим в `IAM → Users → s3-uploader → Permissions → Add permissions`.
 ![alt text](img/image-14.png)
 
 Выбираем `Attach policies directly`.
-Найдим и выбераем созданную ранее политику `S3UploaderPolicy`.
+Находим и выбираем созданную ранее политику `S3UploaderPolicy`.
 ![alt text](img/image-15.png)
 
 Нажмаем `Next: Review → Add permissions`.
