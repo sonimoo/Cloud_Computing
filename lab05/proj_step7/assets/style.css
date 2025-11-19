@@ -1,0 +1,10 @@
+body { font-family: Arial; margin: 40px; background: #fafafa; }
+h2 { color: #333; }
+table { border-collapse: collapse; width: 500px; background: white; margin-bottom: 30px; }
+th, td { border: 1px solid #ddd; padding: 10px; }
+th { background: #f7f7f7; }
+form { width: 400px; background: #fff; padding: 20px; border: 1px solid #ddd; }
+input, select { width: 100%; padding: 8px; margin: 8px 0; }
+button { background: #4CAF50; color: white; padding: 10px; border: none; cursor: pointer; }
+button:hover { background: #45a049; }
+.delete-btn { color: red; text-decoration: none; }
