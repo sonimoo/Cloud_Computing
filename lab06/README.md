@@ -7,57 +7,94 @@
 
 Закрепить навыки работы с AWS EC2, Elastic Load Balancer, Auto Scaling и CloudWatch, создав отказоустойчивую и автоматически масштабируемую архитектуру.
 
-Студент развернёт:
+Развернуты:
 
 - VPC с публичными и приватными подсетями;
-- Виртуальную машину с веб-сервером (nginx);
+- Виртуальная машина с веб-сервером (nginx);
 - Application Load Balancer;
 - Auto Scaling Group (на основе AMI);
 - нагрузочный тест с использованием CloudWatch.
 
-## Условие
+## Ход работы
 
-> Для студентов специализации DevOps. Для получения высшей оценки рекомендуется дополнительно автоматизировать процесс _развертывания VPC и виртуальных машин_ с помощью Terraform.
+### Шаг 1. Подготовка инфраструктуры с помощью Terraform
 
-### Шаг 1. Создание VPC и подсетей
+В рамках лабораторной работы вместо ручного создания ресурсов в AWS была выполнена автоматизация инфраструктуры с использованием Terraform.
 
-1. Создайте VPC (если уже есть — используйте существующую):
-2. Создайте _2 публичные подсети_ и _2 приватные подсети_ в _разных зонах доступности_ (например, `us-east-1a` и `us-east-1b`):
-   1. CIDR-блок: `10.0.1.0/24` и `10.0.2.0/24`
-3. Создайте Internet Gateway и прикрепите его к VPC.
-4. В Route Table пропишите маршрут для публичных подсетей:
-   - Destination: `0.0.0.0/0` → Target: Internet Gateway
+1. В рабочей директории был создан Terraform-проект. 
 
-> Рекомендуется использовать мастер-настройки (wizard) при создании VPC.
+Выполнена команда: terraform init
+
+Она загрузила необходимые провайдеры (AWS).
+
+2. Создание VPC
+
+С помощью Terraform был описан ресурс aws_vpc, обеспечивающий:
+
+CIDR-блок: 10.0.0.0/16
+
+Включён DNS hostnames и DNS support (требуется для корректной работы подсетей и EC2)
+
+3. Создание двух публичных и двух приватных подсетей
+
+Для размещения EC2 и будущих Auto Scaling ресурсов были созданы подсети в двух зонах доступности (us-east-1a и us-east-1b):
+
+Публичные подсети:
+10.0.1.0/24, 10.0.2.0/24
+
+Приватные подсети:
+10.0.11.0/24, 10.0.12.0/24
+
+Каждая подсеть была описана отдельным Terraform-ресурсом aws_subnet
+
+4. Создание и прикрепление Internet Gateway
+
+Для выхода публичных подсетей в интернет создан ресурс:
+
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.main.id
+}
+
+5. Настройка маршрутов
+
+Создана Route Table для публичных подсетей:
+
+маршрут 0.0.0.0/0 направлен на Internet Gateway.
+
+Публичные подсети ассоциированы с этой RT (ресурс aws_route_table_association).
 
 ### Шаг 2. Создание и настройка виртуальной машины
 
-1. Запусите виртуальную машину в созданной подсети:
+1. Описание параметров EC2 в Terraform
 
-   1. AMI: `Amazon Linux 2`
-   2. Тип: `t3.micro`
-   3. В настройках сети выберите созданную VPC и подсеть.
-      1. _Не забудьте назначить публичный IP-адрес_ (Enable auto-assign public IP).
-   4. В настройках безопасности создайте новую группу безопасности с правилами:
+В Terraform был создан ресурс EC2-инстанса:
 
-      - Входящие правила:
+AMI: Amazon Linux 2
 
-        - SSH (порт 22) — источник: ваш IP
-        - HTTP (порт 80) — источник: 0.0.0.0/0
+Тип: t3.micro (подходит под Free Tier)
 
-      - Исходящие правила:
+Размещение в публичной подсети 10.0.1.0/24
 
-        - Все трафики — источник: 0.0.0.0/0
+Включена выдача публичного IP: associate_public_ip_address = true
 
-   5. В `Advanced Details` -> `Detailed CloudWatch monitoring` выберите `Enable`. Это позволит собирать дополнительные метрики для Auto Scaling.
+Включён расширенный мониторинг:
+monitoring = true
 
-   6. В настройках `UserData` укажите следующий скрипт [init.sh](./script/init.sh), который установит, запустит nginx.
+Указан раздел user_data для автоматической установки nginx
 
-2. Дождитесь, пока `Status Checks` виртуальной машины станут зелёными (`3/3 checks passed`).
-3. Убедитесь, что веб-сервер работает, подключившись к публичному IP-адресу виртуальной машины через браузер (_развертывание сервера может занять до 5 минут_).
+2. Создание Security Group
 
+Terraform создал SG со следующими правилами:
 
+Входящие:
 
+SSH (22) — доступ только с моего IP
+
+HTTP (80) — доступ с любого IP (0.0.0.0/0)
+
+Исходящие:
+
+Полный доступ в интернет (0.0.0.0/0)
 
 сделала файлик тераформ
 
@@ -66,6 +103,31 @@
 
 ![alt text](img/image-1.png)
 ![alt text](img/image-2.png)
+
+Применение инфраструктуры и проверка работы
+3.1. Развёртывание ресурсов
+
+Выполнено:
+
+terraform apply
+
+
+Terraform создал:
+
+- VPC
+- 4 подсети
+- Internet Gateway
+- Route Table
+- Security Group
+- EC2 instance
+
+Проверка состояния EC2
+
+После развёртывания проверено в AWS Console:
+
+Статус → 3/3 checks passed
+
+Public IPv4 был назначен корректно
 
 
 ![alt text](img/image-3.png)
@@ -87,42 +149,63 @@
 ![alt text](img/image-12.png)
 ![alt text](img/image-13.png)
 
+Проверка работы веб-сервера
+
+В браузере открыт публичный IP EC2.
+Отобразилась стандартная стартовая страница nginx, что подтверждает:
+
+успешную установку nginx через UserData
+
+правильную работу маршрутизации
+
+доступность веб-сервера
+
 
 ### Шаг 3. Создание AMI
 
-1. В EC2 выберите `Instance` → `Actions` → `Image and templates` → `Create image`.
+1. В EC2 выбираем `Instance` → `Actions` → `Image and templates` → `Create image`.
 ![alt text](img/image-14.png)
-2. Назовите AMI, например: `project-web-server-ami`.
+2. Назовем AMI: `project-web-server-ami`.
 ![alt text](img/image-15.png)
-3. Дождитесь появления AMI в разделе AMIs.
+3. Дождидаемся появления AMI в разделе AMIs.
 
 > Что такое image и чем он отличается от snapshot? Какие есть варианты использования AMI?
+> `Image (AMI)` — это готовый шаблон для запуска EC2-инстансов.
+`Snapshot` — это резервная копия EBS-диска.
+> Разница: AMI включает настройки для загрузки системы (плюс snapshot root-диска), а snapshot — только данные диска.
+> Варианты использования AMI
+> - Запуск новых EC2-инстансов.
+> - Создание собственных кастомных образов.
+> - Использование в Auto Scaling.
+
 
 ### Шаг 4. Создание Launch Template
 
 На основе Launch Template в дальнейшем будет создаваться Auto Scaling Group, то есть подниматься новые инстансы по шаблону.
 
-1. В разделе EC2 выберите `Launch Templates` → `Create launch template`.
-2. Укажите следующие параметры:
+1. В разделе EC2 выбираем `Launch Templates` → `Create launch template`.
+2. Указываем следующие параметры:
    1. Название: `project-launch-template`
    ![alt text](img/image-16.png)
-   2. AMI: выберите созданную ранее AMI (`My AMIs` -> `project-web-server-ami`).
+   2. AMI: выбираем созданную ранее AMI (`My AMIs` -> `project-web-server-ami`).
    ![alt text](img/image-17.png)
    3. Тип инстанса: `t3.micro`.
    ![alt text](img/image-18.png)
-   4. Security groups: выберите ту же группу безопасности, что и для виртуальной машины.
+   4. Security groups: выбираем ту же группу безопасности, что и для виртуальной машины.
    ![alt text](img/image-19.png)
-   5. Нажмите `Create launch template`.
-   6. В разделе `Advanced details` -> `Detailed CloudWatch monitoring` выберите `Enable`. Это позволит собирать дополнительные метрики для Auto Scaling.
+   5. Нажимаем `Create launch template`.
+   6. В разделе `Advanced details` -> `Detailed CloudWatch monitoring` выбираем `Enable`. Это позволит собирать дополнительные метрики для Auto Scaling.
    ![alt text](img/image-20.png)
    ![alt text](img/image-21.png)
 
 > Что такое Launch Template и зачем он нужен? Чем он отличается от Launch Configuration?
+> `Launch Template` — это шаблон с настройками для запуска EC2-инстансов. Он включает параметры: AMI, тип инстанса, диски, сети, SG, UserData и т.д. Нужен для автоматизации создания EC2 и для работы Auto Scaling.
+> `Launch Template` можно редактировать и версионировать, а `Launch Configuration` — нет, его каждый раз нужно создавать заново.
 
 ### Шаг 5. Создание Target Group
 
-1. В разделе EC2 выберите `Target Groups` → `Create target group`.
-2. Укажите следующие параметры:
+1. В разделе EC2 выбираем `Target Groups` → `Create target group`.
+2. Указываем следующие параметры:
 
    1. Название: `project-target-group`
    2. Тип: `Instances`
@@ -132,119 +215,140 @@
    5. VPC: выберите созданную VPC
    ![alt text](img/image-23.png)
 
-3. Нажмите `Next` -> `Next`, затем `Create target group`.
+3. Нажимаем `Next` -> `Next`, затем `Create target group`.
 ![alt text](img/image-24.png)
 
 > Зачем необходим и какую роль выполняет Target Group?
+> Target Group направляет трафик от балансировщика на конкретные серверы и следит за их здоровьем, выбирая только доступные инстансы.
 
 ### Шаг 6. Создание Application Load Balancer
 
-1. В разделе EC2 выберите `Load Balancers` → `Create Load Balancer` → `Application Load Balancer`.
-2. Укажите следующие параметры:
+1. В разделе EC2 выбираем `Load Balancers` → `Create Load Balancer` → `Application Load Balancer`.
+2. Указываем следующие параметры:
    1. Название: `project-alb`
    2. Scheme: `Internet-facing`.
       > В чем разница между Internet-facing и Internal?
+      >Internet-facing — балансировщик виден из интернета и принимает трафик от внешних пользователей.
+      > Internal — балансировщик доступен только внутри VPC и обслуживает внутренние ресурсы.
+      
       ![alt text](img/image-25.png)
-   3. Subnets: выберите созданные 2 публичные подсети.
+   3. Subnets: выбираем созданные 2 публичные подсети.
    ![alt text](img/image-26.png)
-   4. Security Groups: выберите ту же группу безопасности, что и для виртуальной машины.
+   4. Security Groups: выбираем ту же группу безопасности, что и для виртуальной машины.
    ![alt text](img/image-27.png)
    5. Listener: протокол `HTTP`, порт `80`.
-   6. Default action: выберите созданную Target Group `project-target-group`.
+   6. Default action: выбираем созданную Target Group `project-target-group`.
    ![alt text](img/image-28.png)
       > Что такое Default action и какие есть типы Default action?
-   7. Нажмите `Create load balancer`.
+      > Default action — это действие, которое выполняется, если ни одно правило Listener не сработало.
+      > Типы действий: forward (отправить на Target Group), redirect (перенаправить на другой URL) и fixed-response (отправить фиксированный ответ клиенту).
+   7. Нажимаем `Create load balancer`.
    ![alt text](img/image-29.png)
-3. Перейдите в раздел `Resource map` и убедитесь что существуют связи между `Listeners`, `Rules` и `Target groups`.
+3. Переходим в раздел `Resource map` и убеждаемся что существуют связи между `Listeners`, `Rules` и `Target groups`.
 ![alt text](img/image-30.png)
 
 ### Шаг 7. Создание Auto Scaling Group
 
-1. В разделе EC2 выберите `Auto Scaling Groups` → `Create Auto Scaling group`.
-2. Укажите следующие параметры:
+1. В разделе EC2 выбираем `Auto Scaling Groups` → `Create Auto Scaling group`.
+2. Указываем следующие параметры:
 
    1. Название: `project-auto-scaling-group`
    ![alt text](img/image-31.png)
-   2. Launch template: выберите созданный ранее Launch Template (`project-launch-template`).
-   3. Перейдите в раздел `Choose instance launch options `.
+   2. Launch template: выбираем созданный ранее Launch Template (`project-launch-template`).
+   3. Переходим в раздел `Choose instance launch options `.
 
-      - В разделе`Network`: выберите созданную VPC и две приватные подсети.
+      - В разделе`Network`: выбираем созданную VPC и две приватные подсети.
       ![alt text](img/image-32.png)
 
       > Почему для Auto Scaling Group выбираются приватные подсети?
+      > Для Auto Scaling Group выбираются приватные подсети, чтобы серверы были недоступны напрямую из интернета.
+      > Доступ к ним осуществляется через Load Balancer или NAT, что повышает безопасность.
 
-   4. Availability Zone distribution: выберите `Balanced best effort`.
+   4. Availability Zone distribution: выбираем `Balanced best effort`.
 
       > Зачем нужна настройка: `Availability Zone distribution`?
+      > vailability Zone distribution нужна, чтобы автоматически распределять инстансы по разным зонам доступности. Это повышает отказоустойчивость и защищает сервис от падения одной зоны.
 
-   5. Перейдите в раздел `Integrate with other services` и выберите `Attach to an existing load balancer`, затем выберите созданную Target Group (`project-target-group`).
+   5. Переходим в раздел `Integrate with other services` и выбираем `Attach to an existing load balancer`, затем выбираем созданную Target Group (`project-target-group`).
       - Таким образом мы добавляем AutoScaling Group в Target Group нашего Load Balancer-а.
       ![alt text](img/image-33.png)
-   6. Перейдите в раздел `Configure group size and scaling` и укажите:
+   6. Переходим в раздел `Configure group size and scaling` и укажите:
 
       1. Минимальное количество инстансов: `2`
       2. Максимальное количество инстансов: `4`
       3. Желаемое количество инстансов: `2`
-      4. Укажите `Target tracking scaling policy` и настройте масштабирование по CPU (Average CPU utilization — `50%` / `Instance warm-up period` — `60 seconds`).
+      4. Указываем `Target tracking scaling policy` и настройте масштабирование по CPU (Average CPU utilization — `50%` / `Instance warm-up period` — `60 seconds`).
       ![alt text](img/image-34.png)
       ![alt text](img/image-35.png)
 
          > Что такое _Instance warm-up period_ и зачем он нужен?
+         > Instance warm-up period — это время, которое Auto Scaling даёт новому инстансу, чтобы он полностью запустился и начал обслуживать трафик. Нужно, чтобы Auto Scaling не добавлял лишние инстансы, пока новые ещё не готовы принимать нагрузку.
 
-      5. В разделе `Additional settings` поставьте галочку на `Enable group metrics collection within CloudWatch`, чтобы собирать метрики Auto Scaling Group в CloudWatch. _Этот пункт позволит нам отслеживать состояние группы и её производительность_.
+      5. В разделе `Additional settings` поставили галочку на `Enable group metrics collection within CloudWatch`, чтобы собирать метрики Auto Scaling Group в CloudWatch. _Этот пункт позволит нам отслеживать состояние группы и её производительность_.
 
       ![alt text](img/image-36.png)
 
-   7. Перейдите в раздел `Review` и нажмите `Create Auto Scaling group`.
+   7. Переходим в раздел `Review` и нажмаем `Create Auto Scaling group`.
    ![alt text](img/image-37.png)
 
 ### Шаг 8. Тестирование Application Load Balancer
 
-1. Перейдите в раздел EC2 -> `Load Balancers`, выберите созданный Load Balancer и скопируйте его DNS-имя.
+1. Переходим в раздел EC2 -> `Load Balancers`, выбираем созданный Load Balancer и копируем его DNS-имя.
 ![alt text](img/image-38.png)
-2. Вставьте DNS-имя в браузер и убедитесь, что вы видите страницу веб-сервера.
+2. Вставляем DNS-имя в браузер и убедитесь, что вы видите страницу веб-сервера.
 ![alt text](img/image-39.png)
 просто оставила подумать о своем поведении и он зараборал
 ![alt text](img/image-40.png)
 ![alt text](img/image-41.png)
 3. Обновите страницу несколько раз и посмотрите на IP-адреса в ответах.
    > Какие IP-адреса вы видите и почему?
+   > При обновлении страницы несколько раз видны разные IP-адреса — это потому, что Load Balancer распределяет трафик между несколькими EC2-инстансами, обеспечивая балансировку нагрузки.
 
 ### Шаг 9. Тестирование Auto Scaling
 
-1. Перейдите в CloudWatch -> `Alarms`, у вас должны быть созданы автоматические оповещения для Auto Scaling Group.
+1. Переходим в CloudWatch -> `Alarms`, там созданы автоматические оповещения для Auto Scaling Group.
 ![alt text](img/image-42.png)
 ![alt text](img/image-43.png)
 ![alt text](img/image-44.png)
-2. Выберите одно из оповещений (например, `TargetTracking-XX-AlarmHigh-...`), откройте и посмотрите на график CPU Utilization. На данный момент график должен быть низким (около 0-1%).
+2. Выберите одно из оповещений (например, `TargetTracking-XX-AlarmHigh-...`), откройте и посмотрите на график CPU Utilization. На данный момент график низкий (около 0-1%).
 ![alt text](img/image-45.png)
-3. Перейдите в браузер и откройте 6-7 вкладок со следующим адресом:
+3. Переходим в браузер и открываем 6-7 (8) вкладок со следующим адресом:
 
    ```
    http://<DNS-имя вашего Load Balancer-а>/load?seconds=60
    ```
 
 
-4. Вернитесь в CloudWatch и посмотрите на график CPU Utilization. Через несколько минут вы должны увидеть рост нагрузки.
+4. Вернулись в CloudWatch и посмотрели на график CPU Utilization. Через несколько минут есть рост нагрузки.
 ![alt text](img/image-46.png)
-5. Подождите 2-3 минуты, пока CloudWatch не зафиксирует высокую нагрузку и не создаст `Alarm` (будет показано красным цветом).
-6. Перейдите в раздел `EC2` -> `Instances` и посмотрите на количество запущенных инстансов.
+5. Подождали 2-3 минуты, пока CloudWatch не зафиксирует высокую нагрузку и не создаст `Alarm` (показано красным цветом).
+6. Переходим в раздел `EC2` -> `Instances` и смотрим на количество запущенных инстансов.
 
    > Какую роль в этом процессе сыграл Auto Scaling?
+   > Роль Auto Scaling: автоматически добавлять или удалять инстансы в зависимости от нагрузки, обеспечивая масштабируемость и стабильную работу приложения.
 
    ![alt text](img/image-47.png)
 
 ### Шаг 10. Завершение работы и очистка ресурсов
 
-1. Остановите нагрузочный тест (закройте вкладки браузера или остановите скрипт `curl.sh`).
-2. Перейдите в раздел `EC2` -> `Load Balancers`, выберите созданный Load Balancer и удалите его (`Delete`).
-3. Перейдите в раздел `EC2` -> `Target Groups`, выберите созданную Target Group и удалите её (`Delete`).
-4. Перейдите в раздел `EC2` -> `Auto Scaling Groups`, выберите созданную группу и удалите её (`Delete`).
-5. Перейдите в раздел `EC2` -> `Instances`, выберите все запущенные инстансы и завершите их (`Terminate`).
-6. Перейдите в раздел `EC2` -> `AMIs`, выберите созданную AMI и удалите её (`Deregister`), при удалении выберите удаление связанных снимков (snapshots).
-7. Перейдите в раздел `EC2` -> `Launch Templates`, выберите созданный Launch Template и удалите его (`Delete`).
-8. Перейдите в раздел `VPC` и удалите созданные VPC и подсети.
+- Остановили нагрузочный тест.
+- Удалили созданный Load Balancer и Target Group.
+- Удалили Auto Scaling Group и все запущенные EC2-инстансы.
+- Удалили созданную AMI вместе с её snapshot.
+- Удалили Launch Template.
+- Удалили созданные VPC и подсети.
 
 ## Вывод
 
+В ходе лабораторной работы была автоматизирована инфраструктура AWS с помощью Terraform.
+Созданы VPC с публичными и приватными подсетями, EC2-инстансы, Load Balancer, Target Group и Auto Scaling Group.
+Проверена работа веб-сервера, балансировка нагрузки и автоматическое масштабирование.
+Все ресурсы после тестирования были удалены, что обеспечило корректное завершение работы и отсутствие лишних затрат.
 
+## Источники
+
+### Источники
+
+1. [Curs Балансировка нагрузки и автоматическое масштабирование. AWS ELB, EC2 AutoScaling](https://github.com/MSU-Courses/cloud-computing/tree/main/09_AWS_Load_Balancing_And_Auto_Scaling)
+2. [Amazon Web Services. Amazon EC2 Auto Scaling User Guide.](https://docs.aws.amazon.com/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html)
+3. [Amazon Web Services. Application Load Balancer Documentation.](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html)
