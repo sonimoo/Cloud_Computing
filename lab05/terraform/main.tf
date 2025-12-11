@@ -10,7 +10,7 @@ terraform {
 }
 
 provider "aws" {
-  region = "eu-central-1"
+  region = var.region
 }
 
 # ============================
@@ -19,14 +19,14 @@ provider "aws" {
 resource "aws_security_group" "web_sg" {
   name        = "web-security-group-tf"
   description = "Allow HTTP and SSH"
-  vpc_id      = "vpc-036d0e1608ab46c92"
+  vpc_id      = var.vpc_id
 
   ingress {
     description = "HTTP"
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.http_cidr]
   }
 
   ingress {
@@ -34,7 +34,7 @@ resource "aws_security_group" "web_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = [var.ssh_cidr]
   }
 
   egress {
@@ -52,7 +52,7 @@ resource "aws_security_group" "web_sg" {
 resource "aws_security_group" "db_sg" {
   name        = "db-mysql-security-group-tf"
   description = "Allow MySQL only from web-sg"
-  vpc_id      = "vpc-036d0e1608ab46c92"
+  vpc_id      = var.vpc_id
 
   ingress {
     description     = "MySQL from Web-SG"
@@ -74,13 +74,14 @@ resource "aws_security_group" "db_sg" {
 # EC2 INSTANCE
 # ============================
 resource "aws_instance" "web" {
-  ami = "ami-0a6793a25df710b06"
-  instance_type = "t3.micro"
+  ami           = var.ami_id
+  instance_type = var.instance_type
 
-  subnet_id                   = "subnet-0ffdba1be1b9b4559"
+  subnet_id                   = var.subnet_id
   vpc_security_group_ids      = [aws_security_group.web_sg.id]
   associate_public_ip_address = true
-  key_name                    = "k2-keypair"
+
+  key_name = var.key_name
 
   user_data = <<-EOF
     #!/bin/bash
