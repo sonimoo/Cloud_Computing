@@ -1,5 +1,5 @@
 provider "aws" {
-  region = "us-east-1"
+  region = var.region
 }
 
 # ---------------------------
@@ -13,13 +13,13 @@ resource "aws_vpc" "main" {
 }
 
 # ---------------------------
-# PUBLIC SUBNETS (2)
+# PUBLIC SUBNETS
 # ---------------------------
 resource "aws_subnet" "public" {
-  count                   = 2
+  count                   = length(var.public_subnets)
   vpc_id                  = aws_vpc.main.id
-  cidr_block              = element(["10.0.1.0/24", "10.0.2.0/24"], count.index)
-  availability_zone       = element(["us-east-1a", "us-east-1b"], count.index)
+  cidr_block              = var.public_subnets[count.index]
+  availability_zone       = var.availability_zones[count.index]
   map_public_ip_on_launch = true
 
   tags = {
@@ -28,13 +28,13 @@ resource "aws_subnet" "public" {
 }
 
 # ---------------------------
-# PRIVATE SUBNETS (2)
+# PRIVATE SUBNETS
 # ---------------------------
 resource "aws_subnet" "private" {
-  count             = 2
+  count             = length(var.private_subnets)
   vpc_id            = aws_vpc.main.id
-  cidr_block        = element(["10.0.3.0/24", "10.0.4.0/24"], count.index)
-  availability_zone = element(["us-east-1a", "us-east-1b"], count.index)
+  cidr_block        = var.private_subnets[count.index]
+  availability_zone = var.availability_zones[count.index]
 
   tags = {
     Name = "private-${count.index + 1}"
@@ -65,7 +65,7 @@ resource "aws_route_table" "public_rt" {
 }
 
 resource "aws_route_table_association" "public_assoc" {
-  count          = 2
+  count          = length(var.public_subnets)
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public_rt.id
 }
@@ -83,7 +83,7 @@ resource "aws_security_group" "web_sg" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["89.149.84.15/32"]
+    cidr_blocks = [var.ssh_ip]
   }
 
   ingress {
@@ -108,12 +108,13 @@ resource "aws_security_group" "web_sg" {
 # EC2 INSTANCE
 # ---------------------------
 resource "aws_instance" "web" {
-  ami           = "ami-0fa3fe0fa7920f68e"  # Amazon Linux 2023 x86_64
-  instance_type          = "t3.micro"
+  ami           = "ami-0fa3fe0fa7920f68e"
+  instance_type = var.instance_type
+
   subnet_id              = aws_subnet.public[0].id
   vpc_security_group_ids = [aws_security_group.web_sg.id]
 
-  key_name               = "k2-keypair"
+  key_name  = var.key_name
   user_data = file("user_data.sh")
 
   tags = { Name = "project-web" }
